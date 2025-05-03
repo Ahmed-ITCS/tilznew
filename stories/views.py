@@ -250,11 +250,14 @@ class EpisodeViewSet(viewsets.ModelViewSet):
                 }
             )
             serializer.is_valid(raise_exception=True)
-            branched_episode = serializer.save()
+            episode = serializer.save()
+            
+            # Explicitly serialize the created episode with EpisodeSerializer
+            response_serializer = EpisodeSerializer(episode, context=self.get_serializer_context())
             
             # Return the serialized branched episode
             return Response(
-                EpisodeSerializer(branched_episode).data,
+                response_serializer.data,
                 status=status.HTTP_201_CREATED
             )
             
@@ -283,9 +286,13 @@ class EpisodeViewSet(viewsets.ModelViewSet):
             
             serializer = self.get_serializer(data=request.data, context={'story': story})
             serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
+            episode = serializer.save()
             
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # Explicitly serialize the created episode with EpisodeSerializer
+            response_serializer = EpisodeSerializer(episode, context=self.get_serializer_context())
+            
+            # Return the serialized data
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         except Story.DoesNotExist:
             return Response({'detail': 'Story not found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -304,6 +311,8 @@ class VersionViewSet(viewsets.ModelViewSet):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
+        episode_id = self.kwargs.get('episode_pk')
+        context['episode'] = Episode.objects.filter(id=episode_id).first()
         return context
 
     @action(detail=True, methods=['post'])

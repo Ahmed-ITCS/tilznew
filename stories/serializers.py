@@ -49,6 +49,8 @@ class EpisodeSerializer(serializers.ModelSerializer):
     previous_version = serializers.SerializerMethodField()
     has_next_version = serializers.SerializerMethodField()
     has_previous_version = serializers.SerializerMethodField()
+    content = serializers.SerializerMethodField()
+    author_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Episode
@@ -56,8 +58,15 @@ class EpisodeSerializer(serializers.ModelSerializer):
             'id', 'story', 'number', 'title', 'created_at', 'updated_at',
             'has_next', 'has_previous', 'next_episode', 'previous_episode',
             'versions_count', 'next_version', 'previous_version',
-            'has_next_version', 'has_previous_version'
+            'has_next_version', 'has_previous_version', 'content', 'author_id'
         ]
+
+    def get_author_id(self, obj):
+        return obj.story.author.id if obj.story and obj.story.author else None
+    
+    def get_content(self, obj):
+        latest_version = Version.objects.filter(episode=obj).order_by('-version_number').first()
+        return latest_version.content if latest_version else None
 
     def get_has_next(self, obj):
         return Episode.objects.filter(story=obj.story, number__gt=obj.number).exists()
@@ -169,17 +178,18 @@ class EpisodeCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         content = validated_data.pop('content')
         story = self.context.get('story')
-        current_version_number = self.context.get('current_version_number', 1)  # Gets version 3
+        current_version_number = self.context.get('current_version_number', 1)
         
         episode = Episode.objects.create(story=story, **validated_data)
         
-        # Creates Episode 2 with Version 3
         Version.objects.create(
             episode=episode,
             content=content,
-            version_number=current_version_number  # Uses version 3
+            version_number=current_version_number
         )
         
+        # Instead of returning the serialized data, return the episode object
+        # The view will handle serialization
         return episode
 
 class VersionCreateSerializer(serializers.ModelSerializer):
@@ -189,7 +199,9 @@ class VersionCreateSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         episode = self.context.get('episode')
-        
+        if episode is None:
+            raise serializers.ValidationError("Episode not found.")
+
         # Get the latest version number
         latest_version = episode.versions.order_by('-version_number').first()
         version_number = 1 if not latest_version else latest_version.version_number + 1
@@ -200,6 +212,7 @@ class VersionCreateSerializer(serializers.ModelSerializer):
             version_number=version_number
         )
 
+        
 class LikeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Like
@@ -253,7 +266,8 @@ class StoryDetailSerializer(serializers.ModelSerializer):
             'is_favorited', 'is_followed', 'likes_count', 'episodes_count',
             'has_next', 'has_previous', 'next_story', 'previous_story',
             'has_next_episode', 'has_previous_episode', 'next_episode_id', 'previous_episode_id',
-            'has_next_version', 'has_previous_version', 'next_version_id', 'previous_version_id'
+            'has_next_version', 'has_previous_version', 'next_version_id', 'previous_version_id',
+            'cover_image'  # Added cover_image field
         ]
         read_only_fields = ['author', 'status', 'created_at', 'updated_at']
 
