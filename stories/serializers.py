@@ -9,7 +9,6 @@ class StorySerializer(serializers.ModelSerializer):
     is_favorited = serializers.SerializerMethodField()
     is_followed = serializers.SerializerMethodField()
     likes_count = serializers.SerializerMethodField()
-
     class Meta:
         model = Story
         fields = [
